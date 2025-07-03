@@ -67,13 +67,11 @@ cron.schedule('*/5 * * * *', async () => {
     const response = await axios.get(url);
     const data = response.data;
 
-    // Проверка на ошибку от API
     if (data.status === "error") {
       console.error(`[API ERROR] ${data.message}`);
       return;
     }
 
-    // Проверка на наличие данных
     if (!data.values || data.values.length < 2) {
       console.error('[Данные] Недостаточно данных для построения графика.');
       return;
