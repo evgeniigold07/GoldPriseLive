@@ -58,11 +58,11 @@ async function generateChart(data) {
           color: 'white',
         },
       },
-    },
-    backgroundColor: 'black'
+    }
   };
 
-  const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(
+  // ✅ добавляем backgroundColor=black через URL
+  const chartUrl = `https://quickchart.io/chart?backgroundColor=black&c=${encodeURIComponent(
     JSON.stringify(chartConfig)
   )}`;
 
