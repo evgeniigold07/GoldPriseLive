@@ -25,28 +25,41 @@ async function generateChart(data) {
           label: 'Gold Price',
           data: prices,
           borderColor: 'yellow',
-          backgroundColor: 'yellow',
+          backgroundColor: 'transparent',
           fill: false,
+          pointRadius: 3,
+          pointBackgroundColor: '#333',
+          tension: 0.3,
         },
       ],
     },
     options: {
+      layout: {
+        padding: 10,
+      },
       scales: {
+        x: {
+          ticks: { color: 'white' },
+          grid: { color: '#444' },
+        },
         y: {
           beginAtZero: false,
           min: minPrice - 1,
           max: maxPrice + 1,
-        },
-        x: {
-          ticks: {
-            maxTicksLimit: 6,
-          },
+          ticks: { color: 'white' },
+          grid: { color: '#444' },
         },
       },
       plugins: {
         legend: { display: false },
+        title: {
+          display: true,
+          text: 'XAU/USD 5min Chart',
+          color: 'white',
+        },
       },
     },
+    backgroundColor: 'black'
   };
 
   const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(
