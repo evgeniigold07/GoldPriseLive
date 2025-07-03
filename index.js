@@ -1,66 +1,54 @@
-const express = require("express");
-const axios = require("axios");
-const { ChartJSNodeCanvas } = require("chartjs-node-canvas");
-const TelegramBot = require("node-telegram-bot-api");
+import axios from 'axios';
+import { Telegraf } from 'telegraf';
+import cron from 'node-cron';
 
-const app = express();
-const port = process.env.PORT || 3000;
+const bot = new Telegraf('ТВОЙ_БОТ_ТОКЕН'); // 🔁 Замени на токен бота
+const chatId = 'ТВОЙ_CHAT_ID_ИЛИ_КАНАЛ';   // 🔁 Замени на @название_канала или chat_id
 
-const TELEGRAM_BOT_TOKEN = "7620924463:AAE231OC4JlP5dKsf9qUQ4GNA364iEyeklQ";
-const CHAT_ID = "@goldpriselive";
-const API_KEY = "1b100a43c7504893a0fa01efd0520981";
-
-const width = 600;
-const height = 400;
-const chartCallback = (ChartJS) => {
-  ChartJS.defaults.font.size = 16;
-};
-const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height, chartCallback });
-
-async function getPriceData() {
-  const url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=1min&apikey=${API_KEY}&outputsize=10`;
-  const res = await axios.get(url);
-  return res.data.values.reverse();
+async function getGoldPrices() {
+  const url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=5min&outputsize=10&apikey=ТВОЙ_API_КЛЮЧ`; // 🔁 Вставь ключ TwelveData
+  const response = await axios.get(url);
+  return response.data.values.reverse(); // от старых к новым
 }
 
-async function generateChart(data) {
-  const prices = data.map(p => parseFloat(p.close));
-  const times = data.map(p => p.datetime.slice(11, 16));
+function buildChartUrl(data) {
+  const labels = data.map(item => item.datetime.split(' ')[1]);
+  const prices = data.map(item => item.close);
 
-  const config = {
+  const chartConfig = {
     type: 'line',
     data: {
-      labels: times,
+      labels: labels,
       datasets: [{
-        label: 'XAU/USD',
+        label: 'Gold Price',
         data: prices,
-        borderWidth: 2,
-        fill: false
+        fill: false,
+        borderColor: 'gold',
+        tension: 0.1
       }]
     }
   };
 
-  return await chartJSNodeCanvas.renderToBuffer(config);
+  const encoded = encodeURIComponent(JSON.stringify(chartConfig));
+  return `https://quickchart.io/chart?c=${encoded}`;
 }
 
-async function postToTelegram(imageBuffer, lastPrice) {
-  const bot = new TelegramBot(TELEGRAM_BOT_TOKEN);
-  const caption = `📉 XAU/USD: $${lastPrice}`;
-  await bot.sendPhoto(CHAT_ID, imageBuffer, { caption });
-}
-
-app.get("/", async (req, res) => {
+async function postChartToTelegram() {
   try {
-    const data = await getPriceData();
-    const chart = await generateChart(data);
-    await postToTelegram(chart, data[data.length - 1].close);
-    res.send("Chart sent to Telegram!");
-  } catch (e) {
-    console.error(e);
-    res.status(500).send("Error");
+    const prices = await getGoldPrices();
+    const chartUrl = buildChartUrl(prices);
+    await bot.telegram.sendPhoto(chatId, chartUrl, {
+      caption: `📉 Gold price (5m chart) – updated: ${new Date().toLocaleTimeString()}`
+    });
+    console.log('Chart posted to Telegram');
+  } catch (error) {
+    console.error('Error posting chart:', error.message);
   }
+}
+
+// ⏰ Авто-запуск каждые 5 минут
+cron.schedule('*/5 * * * *', () => {
+  postChartToTelegram();
 });
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+bot.launch();
