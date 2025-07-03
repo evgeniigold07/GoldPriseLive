@@ -1,29 +1,14 @@
-cron.schedule('*/5 * * * *', async () => {
-  try {
-    const url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=5min&outputsize=10&apikey=${TWELVE_API_KEY}`;
-    const response = await axios.get(url);
-    const data = response.data;
-
-    // Проверим на ошибку от API TwelveData
-    if (data.status === "error") {
-      console.error(`[API ERROR] ${data.message}`);
-      return;
-    }
-
-    // Проверим, что пришли значения
-    if (!data.values || data.values.length < 2) {
-      console.error('[Данные] Недостаточно данных для построения графика.');
-      return;
-    }
-
-    const { chartUrl, caption } = await generateChart(data);
-
-    await bot.telegram.sendPhoto(CHANNEL_ID, chartUrl, {
-      caption: caption,
-    });
-
-    console.log(`[✓] График отправлен: ${caption}`);
-  } catch (error) {
-    console.error('[Ошибка] Не удалось отправить график:', error.message);
+{
+  "name": "gold-prise-live",
+  "version": "1.0.0",
+  "description": "Telegram bot for live gold price updates",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "telegraf": "^4.12.2",
+    "node-cron": "^3.0.2"
   }
-});
+}
