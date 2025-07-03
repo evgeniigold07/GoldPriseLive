@@ -2,11 +2,14 @@ import axios from 'axios';
 import { Telegraf } from 'telegraf';
 import cron from 'node-cron';
 
-const bot = new Telegraf('ТВОЙ_БОТ_ТОКЕН'); // 🔁 Замени на токен бота
-const chatId = 'ТВОЙ_CHAT_ID_ИЛИ_КАНАЛ';   // 🔁 Замени на @название_канала или chat_id
+const TELEGRAM_BOT_TOKEN = "7620924463:AAE231OC4JlP5dKsf9qUQ4GNA364iEyeklQ";
+const CHANNEL_ID = "@goldpriselive";
+const TWELVE_API_KEY = "1b100a43c7504893a0fa01efd0520981";
+
+const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
 async function getGoldPrices() {
-  const url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=5min&outputsize=10&apikey=ТВОЙ_API_КЛЮЧ`; // 🔁 Вставь ключ TwelveData
+  const url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=5min&outputsize=10&apikey=${TWELVE_API_KEY}`;
   const response = await axios.get(url);
   return response.data.values.reverse(); // от старых к новым
 }
@@ -29,26 +32,27 @@ function buildChartUrl(data) {
     }
   };
 
-  const encoded = encodeURIComponent(JSON.stringify(chartConfig));
-  return `https://quickchart.io/chart?c=${encoded}`;
+  const encodedConfig = encodeURIComponent(JSON.stringify(chartConfig));
+  return `https://quickchart.io/chart?c=${encodedConfig}`;
 }
 
-async function postChartToTelegram() {
+async function sendChart() {
   try {
-    const prices = await getGoldPrices();
-    const chartUrl = buildChartUrl(prices);
-    await bot.telegram.sendPhoto(chatId, chartUrl, {
-      caption: `📉 Gold price (5m chart) – updated: ${new Date().toLocaleTimeString()}`
+    const data = await getGoldPrices();
+    const chartUrl = buildChartUrl(data);
+    await bot.telegram.sendPhoto(CHANNEL_ID, chartUrl, {
+      caption: `Live gold price chart 🟡 (5m timeframe)`
     });
-    console.log('Chart posted to Telegram');
   } catch (error) {
-    console.error('Error posting chart:', error.message);
+    console.error('Error sending chart:', error.message);
   }
 }
 
-// ⏰ Авто-запуск каждые 5 минут
+// Запуск каждые 5 минут
 cron.schedule('*/5 * * * *', () => {
-  postChartToTelegram();
+  sendChart();
 });
 
+// Запуск бота
 bot.launch();
+console.log('Bot started and sending gold charts every 5 minutes');
