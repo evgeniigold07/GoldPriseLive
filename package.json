@@ -1,14 +1,14 @@
 {
-  "name": "gold-prise-live",
+  "name": "goldpriselive",
   "version": "1.0.0",
-  "description": "Telegram bot for live gold price updates",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "axios": "^1.6.0",
-    "telegraf": "^4.12.2",
-    "node-cron": "^3.0.2"
+    "axios": "^1.6.8",
+    "telegraf": "^4.12.3",
+    "node-cron": "^3.0.2",
+    "express": "^4.19.2"
   }
 }
