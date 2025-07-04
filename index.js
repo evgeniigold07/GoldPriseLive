@@ -128,3 +128,15 @@ bot.launch().then(() => {
 }).catch(err => {
   console.error("❌ Бот не запустился:", err);
 });
+// Required for Render (keeps the service "alive")
+import express from 'express';
+const app = express();
+const PORT = process.env.PORT || 10000;
+
+app.get("/", (req, res) => {
+  res.send("Bot is running.");
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
