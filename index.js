@@ -1,9 +1,8 @@
 const { Telegraf } = require('telegraf');
 const axios = require('axios');
 const cron = require('node-cron');
-const express = require('express');
 
-console.log("🟢 Bot is starting...");
+console.log("🟢 Бот запускается...");
 
 const TELEGRAM_BOT_TOKEN = "7620924463:AAE231OC4JlP5dKsf9qUQ4GNA364iEyeklQ";
 const CHANNEL_ID = "@goldpriselive";
@@ -11,7 +10,6 @@ const TWELVE_API_KEY = "1b100a43c7504893a0fa01efd0520981";
 
 const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
-// Chart generation
 async function generateChart(data) {
   try {
     const reversed = data.values.reverse();
@@ -39,14 +37,9 @@ async function generateChart(data) {
         ],
       },
       options: {
-        layout: {
-          padding: 10,
-        },
+        layout: { padding: 10 },
         scales: {
-          x: {
-            ticks: { color: 'white' },
-            grid: { color: '#444' },
-          },
+          x: { ticks: { color: 'white' }, grid: { color: '#444' } },
           y: {
             beginAtZero: false,
             min: minPrice - 1,
@@ -73,23 +66,28 @@ async function generateChart(data) {
     const lastPrice = prices[prices.length - 1];
     const previousPrice = prices[prices.length - 2];
     const trendEmoji = lastPrice > previousPrice ? '🟢' : '🔴';
+    const caption = `${trendEmoji} XAU/USD: $${lastPrice.toFixed(2)}\n#XAUUSD #gold #forex #trading #market`;
 
-    // English-only hashtags
-    const hashtags = "#XAUUSD #gold #forex #trading #goldprice #chart #financialmarkets";
-
-    const caption = `${trendEmoji} XAU/USD: $${lastPrice.toFixed(2)}\n\n${hashtags}`;
-
-    return { chartUrl, caption };
+    return { chartUrl, caption, lastUpdateTime: reversed[reversed.length - 1].datetime };
   } catch (err) {
-    console.error("❌ Error in generateChart:", err);
+    console.error("❌ Ошибка в generateChart:", err);
     throw err;
   }
 }
 
-// Scheduled task every 5 minutes
 cron.schedule('*/5 * * * *', async () => {
   try {
-    console.log("⏰ Running cron job...");
+    const now = new Date();
+    const day = now.getDay(); // Sunday = 0, Saturday = 6
+    const hour = now.getHours();
+
+    // 🔒 Блокируем выходные (СБ + ВС до 23:00)
+    if (day === 6 || (day === 0 && hour < 23)) {
+      console.log('⛔ Рынок закрыт (выходной) — бот не работает.');
+      return;
+    }
+
+    console.log("⏰ Сработал cron-задача");
 
     const url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=5min&outputsize=10&apikey=${TWELVE_API_KEY}`;
     const response = await axios.get(url);
@@ -101,32 +99,32 @@ cron.schedule('*/5 * * * *', async () => {
     }
 
     if (!data.values || data.values.length < 2) {
-      console.error('[Data] Not enough values to build chart.');
+      console.error('[Данные] Недостаточно данных для построения графика.');
       return;
     }
 
-    const { chartUrl, caption } = await generateChart(data);
+    const { chartUrl, caption, lastUpdateTime } = await generateChart(data);
+
+    // 🕒 Проверка времени последней свечи
+    const lastTime = new Date(lastUpdateTime);
+    const diffMinutes = Math.floor((now - lastTime) / 60000);
+    if (diffMinutes > 10) {
+      console.log(`📉 Данные устарели (${diffMinutes} мин) — график не отправлен.`);
+      return;
+    }
 
     await bot.telegram.sendPhoto(CHANNEL_ID, chartUrl, {
       caption: caption,
     });
 
-    console.log(`[✓] Chart sent: ${caption}`);
+    console.log(`[✓] График отправлен: ${caption}`);
   } catch (error) {
-    console.error('[❌ Cron error]:', error.message);
+    console.error('[❌ Ошибка cron]:', error.message);
   }
 });
 
-// Start the bot
 bot.launch().then(() => {
-  console.log("✅ Bot launched and waiting for next event.");
+  console.log("✅ Бот запущен и ждёт следующего события.");
 }).catch(err => {
-  console.error("❌ Bot failed to launch:", err);
+  console.error("❌ Бот не запустился:", err);
 });
-
-// Keep Render alive with Express
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.get('/', (req, res) => res.send('GoldPriseLive bot is running ✅'));
-app.listen(PORT, () => console.log(`🌐 Server running on port ${PORT}`));
