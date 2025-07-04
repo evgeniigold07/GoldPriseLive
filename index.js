@@ -1,22 +1,98 @@
-// index.js import axios from 'axios'; import { ChartJSNodeCanvas } from 'chartjs-node-canvas'; import { Telegraf } from 'telegraf'; import fs from 'fs'; import cron from 'node-cron';
+import axios from 'axios';
+import { Telegraf } from 'telegraf';
+import cron from 'node-cron';
+import { ChartJSNodeCanvas } from 'chartjs-node-canvas';
+import fs from 'fs';
 
-const TELEGRAM_BOT_TOKEN = "7620924463:AAE231OC4JlP5dKsf9qUQ4GNA364iEyeklQ"; const CHANNEL_ID = "@goldpriselive"; const TWELVE_API_KEY = "1b100a43c7504893a0fa01efd0520981";
+const TELEGRAM_BOT_TOKEN = "7620924463:AAE231OC4JlP5dKsf9qUQ4GNA364iEyeklQ";
+const CHANNEL_ID = "@goldpriselive";
+const TWELVE_API_KEY = "1b100a43c7504893a0fa01efd0520981";
 
 const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
-const width = 800; const height = 600; const chartCallback = (ChartJS) => { ChartJS.defaults.color = 'white'; }; const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height, chartCallback });
+async function getGoldPrices() {
+  const url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=5min&outputsize=15&apikey=${TWELVE_API_KEY}`;
+  const response = await axios.get(url);
+  return response.data.values.reverse();
+}
 
-async function getGoldPrices() { const url = https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=5min&outputsize=15&apikey=${TWELVE_API_KEY}; const response = await axios.get(url); return response.data.values.reverse(); }
+async function generateChart(data) {
+  const width = 800;
+  const height = 600;
+  const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height, backgroundColour: 'black' });
 
-async function createChart(prices) { const labels = prices.map(p => p.datetime.split(' ')[1].slice(0,5)); const data = prices.map(p => parseFloat(p.close)); const latest = data[data.length - 1]; const previous = data[data.length - 2]; const emoji = latest > previous ? '🟢' : '🔴'; const title = ${emoji} XAU/USD = ${latest};
+  const labels = data.map(d => d.datetime.slice(11, 16));
+  const prices = data.map(d => parseFloat(d.close));
 
-const configuration = { type: 'line', data: { labels, datasets: [{ label: 'Gold Price', data, borderColor: 'yellow', backgroundColor: 'yellow', tension: 0.2, pointRadius: 3, pointBackgroundColor: 'yellow' }] }, options: { responsive: false, plugins: { legend: { labels: { color: 'white' } }, title: { display: true, text: title, color: 'white', font: { size: 18 } } }, scales: { x: { grid: { color: 'rgba(255, 255, 255, 0.1)', lineWidth: 1 }, ticks: { color: 'white' } }, y: { grid: { color: 'rgba(255, 255, 255, 0.1)', lineWidth: 1 }, ticks: { color: 'white' } } } } };
+  const config = {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Gold Price',
+        data: prices,
+        borderColor: 'yellow',
+        backgroundColor: 'yellow',
+        borderWidth: 2,
+        pointRadius: 3,
+        pointHoverRadius: 4,
+        fill: false,
+        tension: 0.2,
+      }]
+    },
+    options: {
+      responsive: false,
+      plugins: {
+        legend: {
+          labels: { color: 'white', font: { size: 14 } }
+        },
+        title: {
+          display: true,
+          text: `XAU/USD — ${prices[prices.length - 1]}`,
+          color: 'white',
+          font: { size: 18 }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: 'white' },
+          grid: { color: 'rgba(255,255,255,0.1)', lineWidth: 1 }
+        },
+        y: {
+          ticks: { color: 'white' },
+          grid: { color: 'rgba(255,255,255,0.1)', lineWidth: 1 }
+        }
+      }
+    }
+  };
 
-const image = await chartJSNodeCanvas.renderToBuffer(configuration); fs.writeFileSync('./chart.png', image); return { latest, emoji }; }
+  return await chartJSNodeCanvas.renderToBuffer(config);
+}
 
-async function sendChart() { try { const prices = await getGoldPrices(); const { latest, emoji } = await createChart(prices); await bot.telegram.sendPhoto(CHANNEL_ID, { source: './chart.png' }, { caption: ${emoji} XAU/USD = ${latest} }); } catch (error) { console.error('Error sending chart:', error); } }
+async function sendGoldPriceChart() {
+  try {
+    const data = await getGoldPrices();
+    const imageBuffer = await generateChart(data);
 
-cron.schedule('*/5 * * * *', sendChart); bot.launch();
+    const last = parseFloat(data[data.length - 1].close);
+    const prev = parseFloat(data[data.length - 2].close);
+    const trendEmoji = last > prev ? '🟢' : '🔴';
 
-console.log('Bot started...');
+    const caption = `${trendEmoji} XAU/USD: ${last}`;
 
+    const tempFilePath = './gold_chart.png';
+    fs.writeFileSync(tempFilePath, imageBuffer);
+
+    await bot.telegram.sendPhoto(CHANNEL_ID, { source: tempFilePath }, { caption });
+    fs.unlinkSync(tempFilePath);
+  } catch (error) {
+    console.error('Ошибка при отправке графика:', error);
+  }
+}
+
+// Запускаем задачу каждые 5 минут
+cron.schedule('*/5 * * * *', sendGoldPriceChart);
+
+// Запуск бота
+bot.launch();
+console.log('✅ Бот запущен и работает каждые 5 минут.');
