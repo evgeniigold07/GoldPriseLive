@@ -1,117 +1,36 @@
-const { Telegraf } = require('telegraf');
-const axios = require('axios');
-const cron = require('node-cron');
+// 📦 Импорты import axios from 'axios'; import { Telegraf } from 'telegraf'; import cron from 'node-cron'; import { ChartJSNodeCanvas } from 'chartjs-node-canvas'; import fs from 'fs';
 
-console.log("🟢 Бот запускается...");
+// 🔑 Константы const TELEGRAM_BOT_TOKEN = "7620924463:AAE231OC4JlP5dKsf9qUQ4GNA364iEyeklQ"; const CHANNEL_ID = "@goldpriselive"; const TWELVE_API_KEY = "1b100a43c7504893a0fa01efd0520981"; const WIDTH = 800; const HEIGHT = 600;
 
-const TELEGRAM_BOT_TOKEN = "7620924463:AAE231OC4JlP5dKsf9qUQ4GNA364iEyeklQ";
-const CHANNEL_ID = "@goldpriselive";
-const TWELVE_API_KEY = "1b100a43c7504893a0fa01efd0520981";
+const bot = new Telegraf(TELEGRAM_BOT_TOKEN); const chartCanvas = new ChartJSNodeCanvas({ width: WIDTH, height: HEIGHT, backgroundColour: 'black' });
 
-const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
+// 📊 Генерация графика async function generateChart(data) { const prices = data.values.map(point => parseFloat(point.close)).reverse(); const times = data.values.map(point => point.datetime).reverse();
 
-async function generateChart(data) {
-  try {
-    const reversed = data.values.reverse();
-    const prices = reversed.map(item => parseFloat(item.close));
-    const timestamps = reversed.map(item => item.datetime);
+const config = { type: 'line', data: { labels: times, datasets: [{ label: 'Gold Price', data: prices, borderColor: 'yellow', backgroundColor: 'yellow', borderWidth: 2, pointBackgroundColor: '#444', pointRadius: 4, pointHoverRadius: 6, tension: 0.3 }] }, options: { plugins: { legend: { labels: { color: 'yellow', font: { size: 14 } } } }, scales: { x: { ticks: { color: '#aaa', maxRotation: 45, minRotation: 45 }, grid: { color: '#333', lineWidth: 1 } }, y: { ticks: { color: '#aaa' }, grid: { color: '#333', lineWidth: 1.2 } } } } };
 
-    const minPrice = Math.min(...prices);
-    const maxPrice = Math.max(...prices);
+const imageBuffer = await chartCanvas.renderToBuffer(config); const filename = './chart.png'; fs.writeFileSync(filename, imageBuffer);
 
-    const chartConfig = {
-      type: 'line',
-      data: {
-        labels: timestamps,
-        datasets: [
-          {
-            label: 'Gold Price',
-            data: prices,
-            borderColor: 'yellow',
-            backgroundColor: 'transparent',
-            fill: false,
-            pointRadius: 3,
-            pointBackgroundColor: '#333',
-            tension: 0.3,
-          },
-        ],
-      },
-      options: {
-        layout: {
-          padding: 10,
-        },
-        scales: {
-          x: {
-            ticks: { color: 'white' },
-            grid: { color: '#444' },
-          },
-          y: {
-            beginAtZero: false,
-            min: minPrice - 1,
-            max: maxPrice + 1,
-            ticks: { color: 'white' },
-            grid: { color: '#444' },
-          },
-        },
-        plugins: {
-          legend: { display: false },
-          title: {
-            display: true,
-            text: 'XAU/USD 5min Chart',
-            color: 'white',
-          },
-        },
-      }
-    };
+const latestPrice = prices[prices.length - 1]; const previousPrice = prices[prices.length - 2]; const isUp = latestPrice > previousPrice; const emoji = isUp ? '🟢' : '🔴';
 
-    const chartUrl = `https://quickchart.io/chart?backgroundColor=black&c=${encodeURIComponent(
-      JSON.stringify(chartConfig)
-    )}`;
+const caption = ${emoji} XAU/USD: $${latestPrice}; return { path: filename, caption }; }
 
-    const lastPrice = prices[prices.length - 1];
-    const previousPrice = prices[prices.length - 2];
-    const trendEmoji = lastPrice > previousPrice ? '🟢' : '🔴';
-    const caption = `${trendEmoji} XAU/USD: $${lastPrice.toFixed(2)}`;
+// 📅 Запуск каждые 5 минут cron.schedule('*/5 * * * *', async () => { try { const url = https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=5min&outputsize=10&apikey=${TWELVE_API_KEY}; const response = await axios.get(url); const data = response.data;
 
-    return { chartUrl, caption };
-  } catch (err) {
-    console.error("❌ Ошибка в generateChart:", err);
-    throw err;
-  }
+if (data.status === "error") {
+  console.error(`[API ERROR] ${data.message}`);
+  return;
 }
 
-cron.schedule('*/5 * * * *', async () => {
-  try {
-    console.log("⏰ Сработал cron-задача");
+if (!data.values || data.values.length < 2) {
+  console.error('[Данные] Недостаточно данных для графика.');
+  return;
+}
 
-    const url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=5min&outputsize=10&apikey=${TWELVE_API_KEY}`;
-    const response = await axios.get(url);
-    const data = response.data;
+const { path, caption } = await generateChart(data);
+await bot.telegram.sendPhoto(CHANNEL_ID, { source: path }, { caption });
+console.log(`[✓] График отправлен: ${caption}`);
 
-    if (data.status === "error") {
-      console.error(`[API ERROR] ${data.message}`);
-      return;
-    }
+} catch (error) { console.error('[Ошибка] Не удалось отправить график:', error.message); } });
 
-    if (!data.values || data.values.length < 2) {
-      console.error('[Данные] Недостаточно данных для построения графика.');
-      return;
-    }
+// ▶️ Запуск bot.launch(); console.log('🟢 Бот запускается...');
 
-    const { chartUrl, caption } = await generateChart(data);
-
-    await bot.telegram.sendPhoto(CHANNEL_ID, chartUrl, {
-      caption: caption,
-    });
-
-    console.log(`[✓] График отправлен: ${caption}`);
-  } catch (error) {
-    console.error('[❌ Ошибка cron]:', error.message);
-  }
-});
-
-bot.launch().then(() => {
-  console.log("✅ Бот запущен и ждёт следующего события.");
-}).catch(err => {
-  console.error("❌ Бот не запустился:", err);
-});
