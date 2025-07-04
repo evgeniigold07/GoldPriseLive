@@ -1,8 +1,9 @@
 const { Telegraf } = require('telegraf');
 const axios = require('axios');
 const cron = require('node-cron');
+const express = require('express');
 
-console.log("🟢 Бот запускается...");
+console.log("🟢 Bot is starting...");
 
 const TELEGRAM_BOT_TOKEN = "7620924463:AAE231OC4JlP5dKsf9qUQ4GNA364iEyeklQ";
 const CHANNEL_ID = "@goldpriselive";
@@ -10,6 +11,7 @@ const TWELVE_API_KEY = "1b100a43c7504893a0fa01efd0520981";
 
 const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
+// Chart generation
 async function generateChart(data) {
   try {
     const reversed = data.values.reverse();
@@ -32,8 +34,7 @@ async function generateChart(data) {
             fill: false,
             pointRadius: 3,
             pointBackgroundColor: '#333',
-            borderWidth: 2,
-            tension: 0.4,
+            tension: 0.3,
           },
         ],
       },
@@ -44,34 +45,25 @@ async function generateChart(data) {
         scales: {
           x: {
             ticks: { color: 'white' },
-            grid: {
-              color: '#555',
-              lineWidth: 1.5,
-            },
+            grid: { color: '#444' },
           },
           y: {
             beginAtZero: false,
             min: minPrice - 1,
             max: maxPrice + 1,
             ticks: { color: 'white' },
-            grid: {
-              color: '#555',
-              lineWidth: 1.5,
-            },
+            grid: { color: '#444' },
           },
         },
         plugins: {
-          legend: {
-            labels: { color: 'white' }
-          },
+          legend: { display: false },
           title: {
             display: true,
             text: 'XAU/USD 5min Chart',
             color: 'white',
-            font: { size: 16 },
           },
         },
-      },
+      }
     };
 
     const chartUrl = `https://quickchart.io/chart?backgroundColor=black&c=${encodeURIComponent(
@@ -81,18 +73,23 @@ async function generateChart(data) {
     const lastPrice = prices[prices.length - 1];
     const previousPrice = prices[prices.length - 2];
     const trendEmoji = lastPrice > previousPrice ? '🟢' : '🔴';
-    const caption = `${trendEmoji} XAU/USD: $${lastPrice.toFixed(2)}`;
+
+    // English-only hashtags
+    const hashtags = "#XAUUSD #gold #forex #trading #goldprice #chart #financialmarkets";
+
+    const caption = `${trendEmoji} XAU/USD: $${lastPrice.toFixed(2)}\n\n${hashtags}`;
 
     return { chartUrl, caption };
   } catch (err) {
-    console.error("❌ Ошибка в generateChart:", err);
+    console.error("❌ Error in generateChart:", err);
     throw err;
   }
 }
 
+// Scheduled task every 5 minutes
 cron.schedule('*/5 * * * *', async () => {
   try {
-    console.log("⏰ Сработал cron-задача");
+    console.log("⏰ Running cron job...");
 
     const url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=5min&outputsize=10&apikey=${TWELVE_API_KEY}`;
     const response = await axios.get(url);
@@ -104,7 +101,7 @@ cron.schedule('*/5 * * * *', async () => {
     }
 
     if (!data.values || data.values.length < 2) {
-      console.error('[Данные] Недостаточно данных для построения графика.');
+      console.error('[Data] Not enough values to build chart.');
       return;
     }
 
@@ -114,21 +111,22 @@ cron.schedule('*/5 * * * *', async () => {
       caption: caption,
     });
 
-    console.log(`[✓] График отправлен: ${caption}`);
+    console.log(`[✓] Chart sent: ${caption}`);
   } catch (error) {
-    console.error('[❌ Ошибка cron]:', error.message);
+    console.error('[❌ Cron error]:', error.message);
   }
 });
 
+// Start the bot
 bot.launch().then(() => {
-  console.log("✅ Бот запущен и ждёт следующего события.");
+  console.log("✅ Bot launched and waiting for next event.");
 }).catch(err => {
-  console.error("❌ Бот не запустился:", err);
+  console.error("❌ Bot failed to launch:", err);
 });
 
-const express = require('express');
+// Keep Render alive with Express
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => res.send('GoldPriseLive bot is running ✅'));
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🌐 Server running on port ${PORT}`));
