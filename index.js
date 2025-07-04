@@ -1,85 +1,22 @@
-import axios from "axios";
-import { ChartJSNodeCanvas } from "chartjs-node-canvas";
-import fs from "fs";
-import { Telegraf } from "telegraf";
+// index.js import axios from 'axios'; import { ChartJSNodeCanvas } from 'chartjs-node-canvas'; import { Telegraf } from 'telegraf'; import fs from 'fs'; import cron from 'node-cron';
 
-const TELEGRAM_BOT_TOKEN = "7620924463:AAE231OC4JlP5dKsf9qUQ4GNA364iEyeklQ";
-const CHANNEL_ID = "@goldpriselive";
-const TWELVE_API_KEY = "1b100a43c7504893a0fa01efd0520981";
+const TELEGRAM_BOT_TOKEN = "7620924463:AAE231OC4JlP5dKsf9qUQ4GNA364iEyeklQ"; const CHANNEL_ID = "@goldpriselive"; const TWELVE_API_KEY = "1b100a43c7504893a0fa01efd0520981";
 
 const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
-const width = 800;
-const height = 600;
-const chartCallback = (ChartJS) => {
-  ChartJS.defaults.font.size = 16;
-};
+const width = 800; const height = 600; const chartCallback = (ChartJS) => { ChartJS.defaults.color = 'white'; }; const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height, chartCallback });
 
-const chartCanvas = new ChartJSNodeCanvas({ width, height, chartCallback });
+async function getGoldPrices() { const url = https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=5min&outputsize=15&apikey=${TWELVE_API_KEY}; const response = await axios.get(url); return response.data.values.reverse(); }
 
-async function getGoldPrices() {
-  const url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=5min&outputsize=20&apikey=${TWELVE_API_KEY}`;
-  const response = await axios.get(url);
-  return response.data.values.reverse();
-}
+async function createChart(prices) { const labels = prices.map(p => p.datetime.split(' ')[1].slice(0,5)); const data = prices.map(p => parseFloat(p.close)); const latest = data[data.length - 1]; const previous = data[data.length - 2]; const emoji = latest > previous ? '🟢' : '🔴'; const title = ${emoji} XAU/USD = ${latest};
 
-async function generateChart(data) {
-  const labels = data.map((entry) => entry.datetime.slice(11, 16));
-  const prices = data.map((entry) => parseFloat(entry.close));
+const configuration = { type: 'line', data: { labels, datasets: [{ label: 'Gold Price', data, borderColor: 'yellow', backgroundColor: 'yellow', tension: 0.2, pointRadius: 3, pointBackgroundColor: 'yellow' }] }, options: { responsive: false, plugins: { legend: { labels: { color: 'white' } }, title: { display: true, text: title, color: 'white', font: { size: 18 } } }, scales: { x: { grid: { color: 'rgba(255, 255, 255, 0.1)', lineWidth: 1 }, ticks: { color: 'white' } }, y: { grid: { color: 'rgba(255, 255, 255, 0.1)', lineWidth: 1 }, ticks: { color: 'white' } } } } };
 
-  const config = {
-    type: "line",
-    data: {
-      labels,
-      datasets: [
-        {
-          label: "Gold Price",
-          data: prices,
-          borderColor: "yellow",
-          backgroundColor: "yellow",
-          pointBackgroundColor: "yellow",
-          pointRadius: 3,
-          tension: 0.4,
-        },
-      ],
-    },
-    options: {
-      plugins: {
-        legend: {
-          labels: {
-            color: "white",
-          },
-        },
-      },
-      scales: {
-        x: {
-          ticks: { color: "white" },
-          grid: {
-            color: "rgba(255,255,255,0.1)",
-            lineWidth: 1.5,
-          },
-        },
-        y: {
-          ticks: { color: "white" },
-          grid: {
-            color: "rgba(255,255,255,0.1)",
-            lineWidth: 1.5,
-          },
-        },
-      },
-      responsive: false,
-    },
-  };
+const image = await chartJSNodeCanvas.renderToBuffer(configuration); fs.writeFileSync('./chart.png', image); return { latest, emoji }; }
 
-  const buffer = await chartCanvas.renderToBuffer(config);
-  fs.writeFileSync("chart.png", buffer);
-}
+async function sendChart() { try { const prices = await getGoldPrices(); const { latest, emoji } = await createChart(prices); await bot.telegram.sendPhoto(CHANNEL_ID, { source: './chart.png' }, { caption: ${emoji} XAU/USD = ${latest} }); } catch (error) { console.error('Error sending chart:', error); } }
 
-async function main() {
-  const data = await getGoldPrices();
-  await generateChart(data);
+cron.schedule('*/5 * * * *', sendChart); bot.launch();
 
-  await bot.telegram.sendPhoto(CHANNEL_ID, { source: "chart.png" }, { caption: "Gold price update 📈" });
-}
+console.log('Bot started...');
 
-main();
