@@ -125,3 +125,10 @@ bot.launch().then(() => {
 }).catch(err => {
   console.error("❌ Бот не запустился:", err);
 });
+
+const express = require('express');
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => res.send('GoldPriseLive bot is running ✅'));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
