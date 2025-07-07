@@ -1,46 +1,24 @@
-const TELEGRAM_BOT_TOKEN = "7620924463:AAE231OC4JlP5dKsf9qUQ4GNA364iEyeklQ";
-const CHANNEL_ID = "@goldpriselive";
-const TWELVE_API_KEY = "1b100a43c7504893a0fa01efd0520981";
+// Gold Price Bot with Screenshot Posting const TelegramBot = require("node-telegram-bot-api"); const puppeteer = require("puppeteer"); const fetch = require("node-fetch");
 
-const { Telegraf } = require("telegraf");
-const fetch = require("node-fetch");
+const TELEGRAM_BOT_TOKEN = "7620924463:AAE231OC4JlP5dKsf9qUQ4GNA364iEyeklQ"; const CHANNEL_ID = "@goldpriselive"; const TWELVE_API_KEY = "1b100a43c7504893a0fa01efd0520981";
 
-const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
+const bot = new TelegramBot(TELEGRAM_BOT_TOKEN);
 
-async function getGoldPrice() {
-  try {
-    const response = await fetch(`https://api.twelvedata.com/price?symbol=XAU/USD&apikey=${TWELVE_API_KEY}`);
-    const data = await response.json();
-    return parseFloat(data.price);
-  } catch (error) {
-    console.error("Error fetching gold price:", error);
-    return null;
-  }
-}
+function isMarketOpen() { const now = new Date(); const day = now.getUTCDay(); // 0 (Sun) - 6 (Sat) const hour = now.getUTCHours();
 
-let lastPrice = null;
+if (day === 6 || (day === 0 && hour < 22) || (day === 5 && hour >= 21)) return false; if (hour < 22 && hour >= 1) return false; // roughly Asian pre-market pause return true; }
 
-async function sendPriceUpdate() {
-  const price = await getGoldPrice();
+async function getGoldPrice() { try { const response = await fetch( https://api.twelvedata.com/price?symbol=XAU/USD&apikey=${TWELVE_API_KEY} ); const data = await response.json(); return parseFloat(data.price); } catch (error) { console.error("Error fetching gold price:", error); return null; } }
 
-  // Проверка времени: только в будни с 06:00 до 23:00 по CET (Норвегия)
-  const now = new Date();
-  const hour = now.getUTCHours() + 2; // CET = UTC+2
-  const day = now.getUTCDay(); // 0 = Sunday, 6 = Saturday
+async function getScreenshot() { const browser = await puppeteer.launch({ headless: true }); const page = await browser.newPage(); await page.setViewport({ width: 800, height: 600 }); await page.goto("https://www.tradingview.com/chart/?symbol=OANDA:XAUUSD", { waitUntil: "networkidle2", }); await page.waitForTimeout(7000); // wait for chart to fully load const buffer = await page.screenshot(); await browser.close(); return buffer; }
 
-  if (day === 0 || day === 6 || hour < 6 || hour >= 23 || price === null) return;
+async function postGoldPrice() { if (!isMarketOpen()) return;
 
-  if (price !== lastPrice) {
-    const emoji = price > lastPrice ? "🟢" : "🔴";
-    lastPrice = price;
+const price = await getGoldPrice(); if (!price) return;
 
-    const hashtags = "#XAUUSD #gold #forex #trading #goldprice #chart #financialmarkets";
-    const message = `${emoji} XAU/USD: $${price}\n${hashtags}`;
+const emoji = price > 3330 ? "🟢" : "🔴"; const message = ${emoji} XAU/USD: $${price}\n\n#XAUUSD #gold #forex #trading #goldprice #chart #financialmarkets;
 
-    await bot.telegram.sendMessage(CHANNEL_ID, message);
-  }
-}
+const screenshot = await getScreenshot(); await bot.sendPhoto(CHANNEL_ID, screenshot, { caption: message }); }
 
-setInterval(sendPriceUpdate, 5 * 60 * 1000); // каждые 5 минут
+setInterval(postGoldPrice, 5 * 60 * 1000);
 
-bot.launch();
