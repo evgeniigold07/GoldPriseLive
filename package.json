@@ -1,13 +1,16 @@
 {
-  "name": "goldbot",
+  "name": "goldpriselive",
   "version": "1.0.0",
+  "description": "Telegram bot for gold price updates with screenshot support",
   "main": "index.js",
-  "type": "commonjs",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "node-telegram-bot-api": "^0.61.0",
-    "node-fetch": "^2.6.7"
+    "axios": "^1.6.0",
+    "dotenv": "^16.0.3",
+    "node-fetch": "^3.3.2",
+    "puppeteer": "^21.3.8",
+    "telegraf": "^4.12.2"
   }
 }
