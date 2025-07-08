@@ -11,6 +11,23 @@ const TWELVE_API_KEY = "1b100a43c7504893a0fa01efd0520981";
 
 const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
+// 🆕 Храним последнюю цену и время обновления
+let lastPrice = null;
+let lastUpdated = null;
+
+// 🆕 Проверка, открыт ли рынок
+function isMarketOpen() {
+  const now = new Date();
+  const day = now.getUTCDay(); // 0 - Sunday, 6 - Saturday
+  const hour = now.getUTCHours();
+
+  if (day === 6) return false;                  // Суббота
+  if (day === 0 && hour < 23) return false;     // Воскресенье до 23:00 UTC
+  if (day === 5 && hour >= 23) return false;    // Пятница после 23:00 UTC
+
+  return true;
+}
+
 // Chart generation
 async function generateChart(data) {
   try {
@@ -70,16 +87,14 @@ async function generateChart(data) {
       JSON.stringify(chartConfig)
     )}`;
 
-    const lastPrice = prices[prices.length - 1];
-    const previousPrice = prices[prices.length - 2];
-    const trendEmoji = lastPrice > previousPrice ? '🟢' : '🔴';
+    const last = prices[prices.length - 1];
+    const prev = prices[prices.length - 2];
+    const trendEmoji = last > prev ? '🟢' : '🔴';
 
-    // English-only hashtags
     const hashtags = "#XAUUSD #gold #forex #trading #goldprice #chart #financialmarkets";
+    const caption = `${trendEmoji} XAU/USD: $${last.toFixed(2)}\n\n${hashtags}`;
 
-    const caption = `${trendEmoji} XAU/USD: $${lastPrice.toFixed(2)}\n\n${hashtags}`;
-
-    return { chartUrl, caption };
+    return { chartUrl, caption, lastPrice: last };
   } catch (err) {
     console.error("❌ Error in generateChart:", err);
     throw err;
@@ -90,6 +105,11 @@ async function generateChart(data) {
 cron.schedule('*/5 * * * *', async () => {
   try {
     console.log("⏰ Running cron job...");
+
+    if (!isMarketOpen()) {
+      console.log("⏸ Рынок закрыт. Пропуск отправки.");
+      return;
+    }
 
     const url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=5min&outputsize=10&apikey=${TWELVE_API_KEY}`;
     const response = await axios.get(url);
@@ -105,7 +125,22 @@ cron.schedule('*/5 * * * *', async () => {
       return;
     }
 
-    const { chartUrl, caption } = await generateChart(data);
+    const { chartUrl, caption, lastPrice: currentPrice } = await generateChart(data);
+    const now = new Date();
+
+    // 🆕 Проверка изменений за 10 минут
+    if (
+      lastPrice !== null &&
+      currentPrice === lastPrice &&
+      now - lastUpdated < 10 * 60 * 1000
+    ) {
+      console.log("⏸ Цена не изменилась за 10 минут. Пропуск отправки.");
+      return;
+    }
+
+    // 🆕 Обновляем данные
+    lastPrice = currentPrice;
+    lastUpdated = now;
 
     await bot.telegram.sendPhoto(CHANNEL_ID, chartUrl, {
       caption: caption,
