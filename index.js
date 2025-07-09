@@ -89,7 +89,6 @@ async function generateChart(data) {
     const trendEmoji = lastPrice > previousPrice ? '🟢' : '🔴';
 
     const hashtags = "#XAUUSD #gold #forex #trading #goldprice #chart #financialmarkets";
-
     const caption = `${trendEmoji} XAU/USD: $${lastPrice.toFixed(2)}\n\n${hashtags}`;
 
     return { chartUrl, caption };
@@ -138,6 +137,38 @@ cron.schedule('*/5 * * * *', async () => {
 // Start the bot
 bot.launch().then(() => {
   console.log("✅ Bot launched and waiting for next event.");
+
+  // 🔁 Один запуск сразу после старта
+  (async () => {
+    const now = new Date();
+    if (isMarketOpen()) {
+      console.log("🚀 Sending initial chart after launch...");
+
+      try {
+        const url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=5min&outputsize=10&apikey=${TWELVE_API_KEY}`;
+        const response = await axios.get(url);
+        const data = response.data;
+
+        if (!data.values || data.values.length < 2) {
+          console.error('[Initial] Not enough values to build chart.');
+          return;
+        }
+
+        const { chartUrl, caption } = await generateChart(data);
+
+        await bot.telegram.sendPhoto(CHANNEL_ID, chartUrl, {
+          caption: caption,
+        });
+
+        console.log(`[Initial ✓] Chart sent: ${caption}`);
+      } catch (err) {
+        console.error("[❌ Initial chart error]:", err.message);
+      }
+    } else {
+      console.log("⏸ Market is closed at launch. Initial chart skipped.");
+    }
+  })();
+
 }).catch(err => {
   console.error("❌ Bot failed to launch:", err);
 });
