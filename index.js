@@ -11,21 +11,21 @@ const TWELVE_API_KEY = "1b100a43c7504893a0fa01efd0520981";
 
 const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
-let lastPrice = null;
-let lastUpdated = null;
-
+// 🔧 Проверка, открыт ли рынок
 function isMarketOpen() {
   const now = new Date();
-  const day = now.getUTCDay(); // 0 - Sunday, 6 - Saturday
+  const day = now.getUTCDay(); // 0 - Sunday, 5 - Friday, 6 - Saturday
   const hour = now.getUTCHours();
 
-  if (day === 6) return false;                  // Saturday
-  if (day === 0 && hour < 23) return false;     // Sunday before 23:00 UTC
-  if (day === 5 && hour >= 23) return false;    // Friday after 23:00 UTC
+  if (hour === 23) return false;               // перерыв между сессиями 23:00–00:00 UTC
+  if (day === 6) return false;                 // Saturday
+  if (day === 0 && hour < 23) return false;    // Sunday before 23:00
+  if (day === 5 && hour >= 23) return false;   // Friday after 23:00
 
   return true;
 }
 
+// Chart generation
 async function generateChart(data) {
   try {
     const reversed = data.values.reverse();
@@ -84,28 +84,28 @@ async function generateChart(data) {
       JSON.stringify(chartConfig)
     )}`;
 
-    const last = prices[prices.length - 1];
-    const prev = prices[prices.length - 2];
-    const trendEmoji = last > prev ? '🟢' : '🔴';
+    const lastPrice = prices[prices.length - 1];
+    const previousPrice = prices[prices.length - 2];
+    const trendEmoji = lastPrice > previousPrice ? '🟢' : '🔴';
 
     const hashtags = "#XAUUSD #gold #forex #trading #goldprice #chart #financialmarkets";
-    const caption = `${trendEmoji} XAU/USD: $${last.toFixed(2)}\n\n${hashtags}`;
 
-    return { chartUrl, caption, lastPrice: last };
+    const caption = `${trendEmoji} XAU/USD: $${lastPrice.toFixed(2)}\n\n${hashtags}`;
+
+    return { chartUrl, caption };
   } catch (err) {
     console.error("❌ Error in generateChart:", err);
     throw err;
   }
 }
 
+// Scheduled task every 5 minutes
 cron.schedule('*/5 * * * *', async () => {
   try {
     console.log("⏰ Running cron job...");
 
-    const now = new Date();
-
     if (!isMarketOpen()) {
-      console.log("⏸ Рынок закрыт. Пропуск отправки.");
+      console.log("⏸ Market is closed. Skipping chart update.");
       return;
     }
 
@@ -123,20 +123,7 @@ cron.schedule('*/5 * * * *', async () => {
       return;
     }
 
-    const { chartUrl, caption, lastPrice: currentPrice } = await generateChart(data);
-
-    if (
-      lastPrice !== null &&
-      currentPrice === lastPrice &&
-      lastUpdated !== null &&
-      now - lastUpdated < 10 * 60 * 1000
-    ) {
-      console.log("⏸ Цена не изменилась за 10 минут. Пропуск отправки.");
-      return;
-    }
-
-    lastPrice = currentPrice;
-    lastUpdated = now;
+    const { chartUrl, caption } = await generateChart(data);
 
     await bot.telegram.sendPhoto(CHANNEL_ID, chartUrl, {
       caption: caption,
@@ -148,12 +135,14 @@ cron.schedule('*/5 * * * *', async () => {
   }
 });
 
+// Start the bot
 bot.launch().then(() => {
   console.log("✅ Bot launched and waiting for next event.");
 }).catch(err => {
   console.error("❌ Bot failed to launch:", err);
 });
 
+// Keep Render alive with Express
 const app = express();
 const PORT = process.env.PORT || 3000;
 
