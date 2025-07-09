@@ -11,24 +11,21 @@ const TWELVE_API_KEY = "1b100a43c7504893a0fa01efd0520981";
 
 const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
-// 🆕 Храним последнюю цену и время обновления
 let lastPrice = null;
 let lastUpdated = null;
 
-// 🆕 Проверка, открыт ли рынок
 function isMarketOpen() {
   const now = new Date();
   const day = now.getUTCDay(); // 0 - Sunday, 6 - Saturday
   const hour = now.getUTCHours();
 
-  if (day === 6) return false;                  // Суббота
-  if (day === 0 && hour < 23) return false;     // Воскресенье до 23:00 UTC
-  if (day === 5 && hour >= 23) return false;    // Пятница после 23:00 UTC
+  if (day === 6) return false;                  // Saturday
+  if (day === 0 && hour < 23) return false;     // Sunday before 23:00 UTC
+  if (day === 5 && hour >= 23) return false;    // Friday after 23:00 UTC
 
   return true;
 }
 
-// Chart generation
 async function generateChart(data) {
   try {
     const reversed = data.values.reverse();
@@ -101,10 +98,11 @@ async function generateChart(data) {
   }
 }
 
-// Scheduled task every 5 minutes
 cron.schedule('*/5 * * * *', async () => {
   try {
     console.log("⏰ Running cron job...");
+
+    const now = new Date();
 
     if (!isMarketOpen()) {
       console.log("⏸ Рынок закрыт. Пропуск отправки.");
@@ -126,19 +124,17 @@ cron.schedule('*/5 * * * *', async () => {
     }
 
     const { chartUrl, caption, lastPrice: currentPrice } = await generateChart(data);
-    const now = new Date();
 
-    // 🆕 Проверка изменений за 10 минут
     if (
       lastPrice !== null &&
       currentPrice === lastPrice &&
+      lastUpdated !== null &&
       now - lastUpdated < 10 * 60 * 1000
     ) {
       console.log("⏸ Цена не изменилась за 10 минут. Пропуск отправки.");
       return;
     }
 
-    // 🆕 Обновляем данные
     lastPrice = currentPrice;
     lastUpdated = now;
 
@@ -152,14 +148,12 @@ cron.schedule('*/5 * * * *', async () => {
   }
 });
 
-// Start the bot
 bot.launch().then(() => {
   console.log("✅ Bot launched and waiting for next event.");
 }).catch(err => {
   console.error("❌ Bot failed to launch:", err);
 });
 
-// Keep Render alive with Express
 const app = express();
 const PORT = process.env.PORT || 3000;
 
