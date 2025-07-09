@@ -179,3 +179,11 @@ const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => res.send('GoldPriseLive bot is running ✅'));
 app.listen(PORT, () => console.log(`🌐 Server running on port ${PORT}`));
+// Ping Render every 2 min to keep it awake
+setInterval(() => {
+  axios.get(`https://goldpriselive.onrender.com`).then(() => {
+    console.log("🔁 Self-ping to keep Render alive");
+  }).catch(() => {
+    console.log("⚠️ Ping failed");
+  });
+}, 120000); // 2 минуты
