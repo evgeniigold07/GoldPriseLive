@@ -1,14 +1,29 @@
 {
   "name": "goldpriselive",
   "version": "1.0.0",
+  "description": "Telegram bot that sends XAU/USD gold price charts every 5 minutes",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
+  "keywords": [
+    "telegram",
+    "bot",
+    "gold",
+    "xauusd",
+    "telegraf",
+    "forex",
+    "chart"
+  ],
+  "author": "EVGENII",
+  "license": "MIT",
   "dependencies": {
     "axios": "^1.6.7",
     "express": "^4.19.2",
     "node-cron": "^3.0.3",
     "telegraf": "^4.12.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
