@@ -24,155 +24,50 @@ function isMarketOpen() {
   return true;
 }
 
-// Chart generation
-async function generateChart(data) {
-  try {
-    const reversed = data.values.reverse();
-    const prices = reversed.map(item => parseFloat(item.close));
-    const timestamps = reversed.map(item => item.datetime);
-
-    const minPrice = Math.min(...prices);
-    const maxPrice = Math.max(...prices);
-
-    const chartConfig = {
-      type: 'line',
-      data: {
-        labels: timestamps,
-        datasets: [
-          {
-            label: 'Gold Price',
-            data: prices,
-            borderColor: 'yellow',
-            backgroundColor: 'transparent',
-            fill: false,
-            pointRadius: 3,
-            pointBackgroundColor: '#333',
-            tension: 0.3,
-          },
-        ],
-      },
-      options: {
-        layout: {
-          padding: 10,
-        },
-        scales: {
-          x: {
-            ticks: { color: 'white' },
-            grid: { color: '#444' },
-          },
-          y: {
-            beginAtZero: false,
-            min: minPrice - 1,
-            max: maxPrice + 1,
-            ticks: { color: 'white' },
-            grid: { color: '#444' },
-          },
-        },
-        plugins: {
-          legend: { display: false },
-          title: {
-            display: true,
-            text: 'XAU/USD 5min Chart',
-            color: 'white',
-          },
-        },
-      }
-    };
-
-    const chartUrl = `https://quickchart.io/chart?backgroundColor=black&c=${encodeURIComponent(
-      JSON.stringify(chartConfig)
-    )}`;
-
-    const lastPrice = prices[prices.length - 1];
-    const previousPrice = prices[prices.length - 2];
-    const trendEmoji = lastPrice > previousPrice ? '🟢' : '🔴';
-
-    const hashtags = "#XAUUSD #gold #forex #trading #goldprice #chart #financialmarkets";
-    const caption = `${trendEmoji} XAU/USD: $${lastPrice.toFixed(2)}\n\n${hashtags}`;
-
-    return { chartUrl, caption };
-  } catch (err) {
-    console.error("❌ Error in generateChart:", err);
-    throw err;
-  }
-}
-
-// 🟡 Генерация данных с Bybit
-async function fetchXAUTData() {
-  const response = await axios.get('https://api.bybit.com/v5/market/tickers?category=spot&symbol=XAUTUSDT');
-  const price = parseFloat(response.data.result.list[0].lastPrice);
-
-  // Генерация псевдосвечей для графика
-  const now = new Date();
-  const fiveMinAgo = new Date(now.getTime() - 5 * 60000);
-
-  return {
-    values: [
-      { datetime: fiveMinAgo.toISOString(), close: (price - 1).toFixed(2) },
-      { datetime: now.toISOString(), close: price.toFixed(2) }
-    ]
-  };
-}
-
-// Scheduled task every 5 minutes
+// 🟡 Задача: каждые 5 минут отправлять цену
 cron.schedule('*/5 * * * *', async () => {
   try {
     console.log("⏰ Running cron job...");
 
     if (!isMarketOpen()) {
-      console.log("⏸ Market is closed. Skipping chart update.");
+      console.log("⏸ Market is closed. Skipping price update.");
       return;
     }
 
-    const data = await fetchXAUTData();
+    const response = await axios.get('https://api.bybit.com/v5/market/tickers?category=spot&symbol=XAUTUSDT');
+    const price = parseFloat(response.data.result.list[0].lastPrice).toFixed(2);
 
-    if (!data.values || data.values.length < 2) {
-      console.error('[Data] Not enough values to build chart.');
-      return;
-    }
+    const caption = `🟡 XAU/USD: $${price}\n\n#XAUUSD #gold #forex #trading #goldprice #financialmarkets`;
 
-    const { chartUrl, caption } = await generateChart(data);
-
-    await bot.telegram.sendPhoto(CHANNEL_ID, chartUrl, {
-      caption: caption,
-    });
-
-    console.log(`[✓] Chart sent: ${caption}`);
+    await bot.telegram.sendMessage(CHANNEL_ID, caption);
+    console.log(`[✓] Text price sent: ${caption}`);
   } catch (error) {
     console.error('[❌ Cron error]:', error.message);
   }
 });
 
-// Start the bot
+// ▶️ Запуск бота и одно сообщение при старте
 bot.launch().then(() => {
   console.log("✅ Bot launched and waiting for next event.");
 
-  // 🔁 Один запуск сразу после старта
   (async () => {
     const now = new Date();
     if (isMarketOpen()) {
-      console.log("🚀 Sending initial chart after launch...");
+      console.log("🚀 Sending initial price after launch...");
 
       try {
-        const data = await fetchXAUTData();
+        const response = await axios.get('https://api.bybit.com/v5/market/tickers?category=spot&symbol=XAUTUSDT');
+        const price = parseFloat(response.data.result.list[0].lastPrice).toFixed(2);
 
-        if (!data.values || data.values.length < 2) {
-          console.error('[Initial] Not enough values to build chart.');
-          return;
-        }
+        const caption = `🟡 XAU/USD: $${price}\n\n#XAUUSD #gold #forex #trading #goldprice #financialmarkets`;
 
-        const { chartUrl, caption } = await generateChart(data);
-
-        await bot.telegram.sendPhoto(CHANNEL_ID, chartUrl, {
-          caption: caption,
-        });
-
-        console.log(`[Initial ✓] Chart sent: ${caption}`);
+        await bot.telegram.sendMessage(CHANNEL_ID, caption);
+        console.log(`[Initial ✓] Text price sent: ${caption}`);
       } catch (err) {
-        console.error("[❌ Initial chart error]:", err.message);
+        console.error("[❌ Initial price error]:", err.message);
       }
     } else {
-      console.log("⏸ Market is closed at launch. Initial chart skipped.");
+      console.log("⏸ Market is closed at launch. Initial update skipped.");
     }
   })();
 
@@ -180,13 +75,14 @@ bot.launch().then(() => {
   console.error("❌ Bot failed to launch:", err);
 });
 
-// Keep Render alive with Express
+// 🌐 Express для Render
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => res.send('GoldPriseLive bot is running ✅'));
 app.listen(PORT, () => console.log(`🌐 Server running on port ${PORT}`));
 
+// 🔁 Пинг каждые 2 минуты, чтобы Render не спал
 setInterval(() => {
   axios.get(`https://goldpriselive.onrender.com`).then(() => {
     console.log("🔁 Self-ping to keep Render alive");
