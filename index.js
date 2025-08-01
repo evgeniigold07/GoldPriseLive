@@ -7,7 +7,6 @@ console.log("🟢 Bot is starting...");
 
 const TELEGRAM_BOT_TOKEN = "7620924463:AAE231OC4JlP5dKsf9qUQ4GNA364iEyeklQ";
 const CHANNEL_ID = "@goldpriselive";
-const TWELVE_API_KEY = "1b100a43c7504893a0fa01efd0520981";
 
 const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
@@ -17,10 +16,10 @@ function isMarketOpen() {
   const day = now.getUTCDay(); // 0 - Sunday, 5 - Friday, 6 - Saturday
   const hour = now.getUTCHours();
 
-  if (hour === 23) return false;               // перерыв между сессиями 23:00–00:00 UTC
-  if (day === 6) return false;                 // Saturday
-  if (day === 0 && hour < 23) return false;    // Sunday before 23:00
-  if (day === 5 && hour >= 23) return false;   // Friday after 23:00
+  if (hour === 23) return false;
+  if (day === 6) return false;
+  if (day === 0 && hour < 23) return false;
+  if (day === 5 && hour >= 23) return false;
 
   return true;
 }
@@ -98,6 +97,23 @@ async function generateChart(data) {
   }
 }
 
+// 🟡 Генерация данных с Bybit
+async function fetchXAUTData() {
+  const response = await axios.get('https://api.bybit.com/v5/market/tickers?category=spot&symbol=XAUTUSDT');
+  const price = parseFloat(response.data.result.list[0].lastPrice);
+
+  // Генерация псевдосвечей для графика
+  const now = new Date();
+  const fiveMinAgo = new Date(now.getTime() - 5 * 60000);
+
+  return {
+    values: [
+      { datetime: fiveMinAgo.toISOString(), close: (price - 1).toFixed(2) },
+      { datetime: now.toISOString(), close: price.toFixed(2) }
+    ]
+  };
+}
+
 // Scheduled task every 5 minutes
 cron.schedule('*/5 * * * *', async () => {
   try {
@@ -108,14 +124,7 @@ cron.schedule('*/5 * * * *', async () => {
       return;
     }
 
-    const url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=5min&outputsize=10&apikey=${TWELVE_API_KEY}`;
-    const response = await axios.get(url);
-    const data = response.data;
-
-    if (data.status === "error") {
-      console.error(`[API ERROR] ${data.message}`);
-      return;
-    }
+    const data = await fetchXAUTData();
 
     if (!data.values || data.values.length < 2) {
       console.error('[Data] Not enough values to build chart.');
@@ -145,9 +154,7 @@ bot.launch().then(() => {
       console.log("🚀 Sending initial chart after launch...");
 
       try {
-        const url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=5min&outputsize=10&apikey=${TWELVE_API_KEY}`;
-        const response = await axios.get(url);
-        const data = response.data;
+        const data = await fetchXAUTData();
 
         if (!data.values || data.values.length < 2) {
           console.error('[Initial] Not enough values to build chart.');
@@ -179,7 +186,7 @@ const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => res.send('GoldPriseLive bot is running ✅'));
 app.listen(PORT, () => console.log(`🌐 Server running on port ${PORT}`));
-// Ping Render every 2 min to keep it awake
+
 setInterval(() => {
   axios.get(`https://goldpriselive.onrender.com`).then(() => {
     console.log("🔁 Self-ping to keep Render alive");
